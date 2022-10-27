@@ -13,3 +13,8 @@ https://developer.twitter.com/en/docs/tutorials/step-by-step-guide-to-making-you
 
 Übetragen Sie die App Keys in die leere CSV Datei unter Auth in die Spalten V1 bis V5 (oder fügen Sie diese direkt in die tokenize Funktion ein).
 
+
+## Open Source
+
+Sie können die Open Source Progammiersprache R mit diesem anschaulichen Guide installieren: https://bjoernwalther.com/r-installieren-windows-und-rstudio-installieren/
+
