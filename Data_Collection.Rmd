@@ -1,0 +1,451 @@
+---
+title: "Data_Collection"
+author: "Marius Saeltzer"
+date: "17 10 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Social Media Analyse
+
+Mit der zunehmenden Verlagerung sozialer Interaktion in den digitalen Raum enstehen gewaltige Mengen digitaler Spurendaten. Für die Sozialwissenschaften, die bisher von offiziellen Registerdaten und/oder Rückschlüsse auf soziale Prozesse ziehen musste, ist der Zugang zu diesen "gefundendenen" Daten ein großes Potential. 
+
+Insbesondere Soziale Medien erlauben einen Einblick in Prozesse, die zuvor kaum beobachtbar waren. Die Probleme mit diesen Quellen sind eher der kaum zu kontrollierende Überfluss als die mangelnde Verfügbarkeit. Aus diesem Grund sind zunehmend Wissenschafter*innen dazu übergegangen, (teil-) automatisierte Verfahren in die eigenen Forschungsprozesse miteinzubeziehen. Entsprechend sehen wir eine zunehmende Diffusion von Methoden der Informatik, und das Schaffen neuer Grenzwissenschaften der Computational Social Science.
+
+## Datensammlung
+
+Der Zugang zu diesen Daten ist somit von zentraler Bedeutung, und wird ebenfalls durch automatisierte Sammlungstechniken ermöglicht. Während zuvor die Digitaliserung der Daten (Inhaltsanalyse, Befragungen) ein zentraler Aspekt der Forschung waren, findet die Sammlung digitaler Spurendaten vor allem in Internetquellen mit Hilfe von Computerprogrammen statt. Hier unterscheiden wir zwei Methoden: das Crawling/Scraping imitiert menschliches Nutzerverhalten und bewegt sich (oft ohne Wissen oder Zustimmung des Anbieters) durch das Netz. Die zweite Methode ist die Nutzung der Datenbanken des Anbieters, meist mit Application Programming Interfaces.
+
+## Was ist eine API?
+
+Application Programming Interfaces (API) sind Programmierschnittstellen für Entwickler, die es erlauben die Datenbanken des Anbieters der API auszulesen. Hierzu werden Befehle mit Abfragen formuliert und durch den Server beantwortet. Je nach Kontext ist dies offen zugänglich, erfordert Anmeldung und Authetifizierung, oder ist nur intern verfügbar. In diesem Tutorial beschäftigen wir uns mit dem sozialen Medium Twitter. 
+
+Twitter stellt für Forschung und Unternehmen mehrere API Zugänge zur Verfügung. Die Standard Ausführung ist die Twitter API. Jeder Nutzer mit Twitteraccount kann Zugang beantragen, und bekommt diesen für gewöhnlich auch gewährt. Die Zugänge sind hier limitiert in Bezug auf die Menge und Breite der Daten die zugänglich sind.
+
+Zweitens bietet Twitter zahlenden Kunden eine Reihe von API Zugängen an, die von diesem Restriktionen ausgenommen sind. 
+
+Zu guter letzt gibt es für akademische Forschung eine eigene API, die academic API die im Prinzip die gesamte Breite der Daten mit begrenzten Mangen abfragen kann.
+
+## Twitter API in R
+
+Für die standard API und die academic API gibt es sogenannte "Wrapper" in verschiedenen Programmiersprachen. Für Data Science sind insbesondere R und Python beliebt. Diese Wrapper erlauben es Anfragen in der Sprache zu formulieren, in der man bervorzugt programmiert. Die beliebtesten Wrapper für R sind die packages rtweet, streamR und academictwitter.
+
+Da academictwitter eine Universitätstelle vorraussetzt, nutzen wir hier rtweet.
+
+```{r }
+if(!require(stringr)){install.packages("stringr")}
+if(!require(rtweet)){install.packages("rtweet")}
+if(!require(quanteda)){install.packages("quanteda")}
+```
+
+## Authentification
+
+API Requests sind so strukturiert, dass ein Paket aus einer Anfrage und den Authentifizierungsinformationen an das Ziel geschickt wird. 
+
+Hierfür verwenden wir einen access Token. Wenn Sie noch nicht über Zugangsdaten verfügen, legen Sie sich einen Twitter Account an, wechseln auf das Programmiererportal und folgen dort den Anweisungen. Am Ende erstellen Sie eine APP, die ihnen eine Reihe von authentifcation Daten erlaubt. Wenn Sie bereits einen Twitter Account haben der vernetzt ist, kann die Authentifzierung auch über ein Brwoser Fenster geschehen.
+
+
+
+```{r}
+r2<-read.csv("auth/tokens2.csv")
+```
+
+Wir definieren eine Funktion die einen Token aus einer csv datei mit tokens erzeugt (bitte adaptieren Sie den code entsprechend ihrer Formatierung.)
+
+```{r}
+tokenize<-function(tokens,i){
+  return(create_token(app = as.character(tokens[i,3]),consumer_key = tokens[i,4],consumer_secret = tokens[i,5],access_token = tokens[i,6],access_secret = tokens[i,7],set_renv =F))
+}
+```
+
+```{r}
+tx<-tokenize(r2,4)
+```
+
+Sobald der token nun zur Verfügung steht, können wir ihn Nutzen um Daten herunterzuladen.
+
+## User
+
+Als ersten Schritt suchen wir uns ein paar Ziele, in diesem Fall ein paar prominente SPD Accounts. 
+
+Die Bundestagsfraktion:
+
+```{r}
+
+l1<-lookup_users("spdde",token = tx)
+spd_id<-l1$user_id
+```
+
+
+sowie Karl Lauterbach und Ralf Stegner.
+
+```{r}
+l2<-lookup_users("karl_lauterbach",token = tx)
+l3<-lookup_users("ralf_stegner",token = tx)
+
+```
+
+## Follower
+
+Social Media wird erst dadurch Sozial, als das es ein soziales Netzwerk ist, welches Menschen verbindet. Diese Verbindungen finden entweder in bilataralen Beziehungen oder hierarchischen Beziehungen (Follower) wieder. Jeder Account hat Follower und folgt anderen Accounts (Friends). 
+
+```{r}
+get_followers("spdde",n = 100,token = tx)
+```
+
+Da die Listen der Follower sehr lang sind bei diesen Accounts ist es sinnvoller sich die Accounts anzusehen, denen die Accounts folgen. Hier lassen sich interessante Rückschlüsse ziehen.
+
+
+```{r}
+f1<-get_friends(l1$user_id,token=tx)
+f2<-get_friends(l2$user_id,token=tx)
+f3<-get_friends(l3$user_id,token=tx)
+
+```
+
+Zunächst schauen wir uns an, welchen Accounts alle drei Politiker Accounts folgen.
+
+
+```{r}
+gem<-intersect(f1$user_id,union(f2$user_id,f3$user_id))
+length(gem)
+```
+Wir laden deren Profile herunter, um einen Überblick zu erhalten.
+
+```{r}
+com<-lookup_users(gem,token=tx)
+```
+
+Und ordnen diese nach ihrer Followerzahl.
+
+```{r}
+com<-com[order(com$followers_count,decreasing = T),]
+```
+
+Nun schauen wir uns an, wieviele von diesen Accounts sich selbst als SPD identifizieren.
+
+```{r}
+plot(log(com$followers_count),log(com$statuses_count),col=c("black","red")[as.factor(grepl("SPD",com$description))],
+     ylab="Tweets (log)",xlab="Follower (log)")
+```
+
+```{r}
+mean(grepl("SPD",com$description))
+```
+
+Was kann man nun mit diesen Daten anstellen? Zum Beispiel kann man versuchen politische Einstellungen zu schätzen. Wem wir folgen sagt viel über unsere Interessen, unsere Einstellungen und Präferenzen. Pablo Barbera verwendet ein Skalierungsverfahren um Accounts zu gewichten, je nachdem wieviel sie über politische Einstellungen aussagen. Die Logik dahinter ist einfach: wir wollen Nachrichten, die unseren Vorstellungen entsprechen und kognitive Dissonanz vermeiden. 
+
+Für diesen Vortrag habe ich die Ideologie anhand einer Reihe von Politikeraccounts berechnet, und Accounts extrahiert, die Aussagen über die Einstellungen der Nutzer erlauben. Hierfür identifizieren wir durch eine Art Faktorenanalyse die "Hauptdimension" der Unterschiede im Followerverhalten.
+
+```{r}
+load("weight_accounts.rdata")
+
+score_lr<-function (friends,w4) 
+{
+  y <- matrix((w4$user_id %in% friends) * 1, 
+              nrow = 1)
+  if (sum(y) == 0) {
+    theta<-NA
+    return(theta)
+  }
+  message(user, " follows ", sum(y), " elites: ", 
+          paste(w4$screen_name[w4$user_id %in% 
+                                                 friends], collapse = ", "))
+  theta <- w4$CA1[w4$user_id%in%friends]
+  theta <- theta + rnorm(1, 0, 0.05)
+
+  return(mean(theta))
+}
+
+```
+
+Diese Funktion berechnet die durchschnittliche Position eines beliebigen Accounts, basierend auf den Friends aus, indem er die Ähnlichkeit im Folge-verhalten mit etwa 800 Politiker*innen vergleicht. 
+
+Wir sammeln hierfür die Friends von ein paar prominenten, politischen Accounts, von denen wir einen intutitiven Eindruck haben.
+```{r}
+accs<-c("katjakipping",
+"alice_weidel",
+"ralf_stegner",
+"HGMaassen",
+"JTrittin",
+"ulfposh",
+"SWagenknecht",
+"stefan_naas_fdp",
+"janine_wissler",
+"ArminLaschet",
+"_FriedrichMerz",
+"FESonline",
+"KASonline",
+"rosaluxstiftung"
+)
+
+```
+
+Wir verwandeln diese Objekte in einen Datensatz...
+```{r}
+aclist<-list()
+
+```
+
+```{r}
+for(i in 1:length(accs)){
+  aclist[[i]]<-get_friends(accs[i],token = tx)
+}
+
+```
+
+... und wenden den Algorithmus an.
+```{r}
+mx<-lapply(aclist,function(x) score_lr(x$user_id,w4 = w4))
+
+df<-data.frame(name=accs,position=unlist(mx))
+
+```
+
+Werfen wir einen Blick auf politische Einstellungen:
+```{r}
+df<-df[order(df$position),]
+df1<-df[df$position>(-1),]
+
+par(mar=c(7,4,4,4))
+barplot(df1$position,ylim=c(-.3,.3),las=2,names=df1$name,cex.axis = 1)
+
+```
+
+```{r}
+
+df<-df[order(df$position),]
+par(mar=c(7,4,4,4))
+barplot(df$position,ylim=c(-.3,.3),las=2,names=df$name,cex.axis = 1)
+```
+
+
+```{r}
+add_friend<-function(acc1,df,w4=w4,tx=tx){
+g1<-get_friends(acc1,token = tx)
+score_lr(g1$user_id,w4 = w4)
+df<-rbind.data.frame(df,data.frame(name=acc1,position=score_lr(g1$user_id,w4 = w4)))
+return(df)
+}
+
+tx<-tokenize(r2,4)
+
+df2<-add_friend("elhammanea",df,w4=w4,tx=tx)
+```
+```{r}
+barplot(df$position,ylim=c(-.3,.3),las=2,names=df$name,cex.axis = 1)
+
+```
+
+
+
+## Tweetanalyse 
+
+Nachdem wir uns die Followernetzwerke angesehen haben werfen wir einen Blick auf die Tweets selbst. Der get_timeline Befehl erlaubt es uns alle Posts einer Liste von Accounts zu sammeln (bis zu 3200 pro account), der search_tweets Befehl einen Keyword-basierten Querschnitt.
+
+Wir komzentieren uns hier auf die gezielte Account Suche.
+
+
+```{r}
+tweets<-get_timeline(c(l1$user_id,l2$user_id,l3$user_id),token=tx,n=3200)
+```
+
+Zunächst prüfen wir schnell, ob die Daten gut aussehen: wie wir sehen haben wir etwa 3200 posts pro Account erhalten, was dem Limit der API entspricht.
+
+```{r}
+table(tweets$screen_name)
+```
+
+
+```{r}
+hist(tweets[tweets$screen_name=="spdde",]$created_at,breaks="weeks")
+```
+
+Da die SPD relativ viel posted, kommen wir nur bis zum Anfang des Jahres zurück, während wir mit Lauterbach bis ins Jahr 2021 zurück kommen. Falls wir uns allerdings für die Bundestagswahl interessieren, bekommen wir die Daten nicht mehr.
+
+
+
+```{r}
+hist(tweets[tweets$screen_name=="Karl_Lauterbach",]$created_at,breaks="weeks")
+
+
+```
+
+
+Wieviele dieser Tweets sind nur original content?
+
+```{r}
+table(tweets$is_retweet,tweets$screen_name)
+```
+
+Wieviele Tweets wurden nun von mehreren dieser 3 Accounts geposted?
+
+```{r}
+sum(duplicated(tweets$text))
+```
+
+# Device
+
+Ein weiteres Feature ist die Analyse wer von wo gepostet hat. Die API gibt zum Beispiel an, welche App verwendet wurde. Wir sehen hier zB das Lauterbach vor allem selbst Twittert vom IPhone, während die Fraktion meißt vom Desktop Computer oder einer professionellen Software aus posted.
+
+```{r}
+table(tweets$source,tweets$screen_name)
+```
+
+Werfen wir einen Blick auf das Arbeitsverhalten der SPD-Bundestagsfraktion. 
+
+
+```{r}
+spd<-tweets[tweets$screen_name=="spdde",]
+```
+
+Wir transformieren die Zeit und schauen uns nur die Stunden des Tages an, an denen im letzten Jahr getwittert wurde. 
+
+```{r}
+library(stringr)
+hours<-stringr::str_extract(as.character(spd$created_at),"[0-9][0-9]\\:[0-9][0-9]\\:[0-9][0-9]")
+time<-as.POSIXct(hours,format="%H:%M:%S")
+
+```
+
+Und nun vergleichen wir die Arbeit mit der Desktop App und dem Iphone: 
+
+
+```{r}
+hist(time[spd$source=="Twitter Web App"],breaks="hours")
+hist(time[spd$source=="Twitter for iPhone"],breaks="hours")
+
+```
+
+
+### Textanalyse
+
+Zu guter Letzt wollen wir einen Blick in die INHALTE der Tweets werfen: hierfür verwenden wir die Textanalyse Software quanteda, die uns schnelle und effiziente Verdatung von Sprache erlaubt.
+
+Um Worte effizient auswerten zu können erzeugen wir eine sogenannte Document-Feature Matrix (DFM), die uns für jedes im Corpus (hier alle Tweets) angibt, wie oft es in welchem Dokument vorkommt. 
+
+Wir überprüfen, in welcher Sprache die Accounts posten:
+
+```{r}
+table(tweets$lang)
+tweets<-tweets[tweets$lang=="de",]
+```
+
+Wir beschränken unsere Analyse auf deutsche Tweets.
+
+```{r}
+
+d1<-dfm(tokens(corpus(tweets$text,docvars=tweets[,c("screen_name","created_at","lang")]),remove_punct=T,remove_numbers=T,remove_symbols=T,remove_url=T))
+
+```
+
+Wir entfernen Zahlen, Satzzeichen und URL.
+
+
+```{r}
+d1
+```
+Insgesamt verwenden diese 3 Accounts 26,000 einzigartige Worte.
+
+```{r}
+topfeatures(d1)
+```
+```{r}
+quanteda.textplots::textplot_wordcloud(d1,min_size = 1,min_count = 250)
+```
+
+
+
+```{r}
+d1<-dfm_select(d1,pattern = c("dass",stopwords("de")),selection = "remove")
+```
+
+
+```{r}
+topfeatures(d1)
+
+```
+
+```{r}
+d2<-dfm_select(d1,"#*",selection = "keep")
+```
+
+```{r}
+topfeatures(d2)
+
+
+```
+
+Und @Mentions
+
+```{r}
+d2<-dfm_select(d1,"@*",selection = "keep")
+```
+
+```{r}
+topfeatures(d2)
+```
+
+
+Was wir hier sehen ist nur ein erster Blick auf Textanalyse, sozusagen die erste Aufbereitung dieser Daten für die weitergehende Verarbeitung. Von hier sind Analysen mithilfe maschinellen Lernens auch für große Textscorpora möglich. 
+
+Beispiele sind thematische Clusterung, Identifizierung von "Angriffen", Frames oder auch Hate Speech. Auch die obige Analyse zu politischen Positionen lassen sich mit Textanalyse erstaunlich gut replizieren. 
+
+
+```{r, include=TRUE, fig.align="center"}
+knitr::include_graphics("fig_7a.pdf")
+```
+
+```{r}
+library(ggplot2)
+exp<-read.csv("individual.csv")
+
+exp$fullname
+
+cols2<-c(
+"#b3c6ff",
+"#ceccca",
+"#aacfee",
+"#efc2d8",
+"#fff899",
+"#bee8b0",
+"#ffb3b8")
+
+colors<-c(
+  "#0033cc",
+"#32302E",
+"#87bbe6",
+"#bd3075",
+"#FFED00",
+"#46962B",
+"#E3000F")
+
+
+pcols<-colors
+
+exp$party<-toupper(exp$party)
+exp$party<-ifelse(exp$party=="AFD","AfD",exp$party)
+
+nom<-c("Sahra_Wagenknecht","Joachim-Friedrich Martin Josef_Merz","Hans-Georg_Maaßen","Alice Elisabeth_Weidel","Tino_Chrupalla","Janine Natalie_Wißler","Dietmar Gerhard_Bartsch","Christian Wolfgang_Lindner","Olaf_Scholz","Armin_Laschet","Annalena Charlotte Alma_Baerbock")
+shortname<-c("Sahra Wagenknecht","Friedrich Merz","Hans-Georg Maaßen","Alice Weidel","Tino Chrupalla","Janine Wißler","Dietmar Bartsch","Christian Lindner","Olaf Scholz","Armin Laschet","Annalena Baerbock")
+posi<-c(4,4,4,3,4,1,3,1,2,2,2)
+#posi<-c(1,1,1,1,1,1,1,1,1,1)
+```
+
+
+```{r}
+ms2<-exp
+ms2$party<-as.factor(ms2$party)
+pcols3<-pcols
+plot(ms2$score,ms2$score2,col=cols2[as.factor(ms2$party)],cex=1,xlab = "Dimension 1",ylab="Dimensions 2",pch=1)
+
+for(i in 1:length(nom)){
+  points(ms2[ms2$fullname==nom[i],]$score,ms2[ms2$fullname==nom[i],]$score2,col=pcols3[ms2[ms2$fullname==nom[i],]$party],pch=19,cex=1.2)
+  text(ms2[ms2$fullname==nom[i],]$score,ms2[ms2$fullname==nom[i],]$score2,labels = shortname[i],pos = posi[i],col=pcols3[ms2[ms2$fullname==nom[i],]$party],cex = 0.8)
+}
+
+```
+
