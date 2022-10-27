@@ -18,3 +18,6 @@ https://developer.twitter.com/en/docs/tutorials/step-by-step-guide-to-making-you
 
 Sie können die Open Source Progammiersprache R mit diesem anschaulichen Guide installieren: https://bjoernwalther.com/r-installieren-windows-und-rstudio-installieren/
 
+## HTML
+
+Wer den Text nur lesen möchte, klickt einfach auf https://htmlpreview.github.io/?https://github.com/msaeltzer/twitter_data/blob/master/Data_Collection.html
